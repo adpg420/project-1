@@ -1,0 +1,159 @@
+void pobierzWspol(double wsp[]) {
+    printf("Podaj wspolczynniki funkcji f(x) = A * sin((B * x + C) / D)\n");
+    printf("Podaj wspolczynnik A: ");
+    scanf("%lf", &wsp[0]);
+    printf("Podaj wspolczynnik B: ");
+    scanf("%lf", &wsp[1]);
+    printf("Podaj wspolczynnik C: ");
+    scanf("%lf", &wsp[2]);
+    do {
+        printf("Podaj wspolczynnik D (D != 0): ");
+        scanf("%lf", &wsp[3]);
+        if (wsp[3] == 0) {
+            printf("Blad. Wspolczynnik D nie moze byc rowny 0\n");
+        }
+    } while (wsp[3] == 0);
+}
+
+void pobierzGranice(double* xmin, double* xmax) {
+    printf("Pobierz granice dziedziny:\n");
+    do {
+        printf("Podaj granice xmin: ");
+        scanf("%lf", xmin);
+        printf("Podaj granice xmax: ");
+        scanf("%lf", xmax);
+
+        if (*xmin >= *xmax) {
+            printf("Blad! xmin musi byc mniejsze od xmax.\n");
+        }
+    } while (*xmin >= *xmax);
+}
+
+int pobierzLiczbeProbek(void) {
+    int n = 0;
+    do {
+        printf("Podaj liczbe probek (min 10): ");
+        scanf("%d", &n);
+        if (n < 10) {
+            printf("Blad! Liczba probek musi byc wieksza lub rowna 10!\n");
+        }
+    } while (n < 10);
+    return n;
+}
+
+void generujSygnal(const double wsp[], double xmin, double xmax, double probki[], int n) {
+    double A = wsp[0];
+    double B = wsp[1];
+    double C = wsp[2];
+    double D = wsp[3];
+
+    double dx = (n > 1) ? (xmax - xmin) / (double)(n - 1) : 0;
+
+    for (int i = 0; i < n; i++) {
+        double x = xmin + i * dx;
+        probki[i] = A * sin((B * x + C) / D);
+    }
+}
+
+void dodajSzum(const double* wejscie, double* wyjscie, int n, double max_amplituda) {
+    for (int i = 0; i < n; i++) {
+        // Losowanie amplitudy szumu z zakresu [-max_amplituda, max_amplituda]
+        double szum = ((double)rand() / RAND_MAX * 2.0 - 1.0) * max_amplituda;
+        wyjscie[i] = wejscie[i] + szum;
+    }
+}
+
+// Pomocnicza funkcja do sortowania bąbelkowego okna (dla filtra medianowego)
+void sortujOkno(double tab[], int rozmiar) {
+    for (int i = 0; i < rozmiar - 1; i++) {
+        for (int j = 0; j < rozmiar - 1 - i; j++) {
+            if (tab[j] > tab[j + 1]) {
+                double temp = tab[j];
+                tab[j] = tab[j + 1];
+                tab[j + 1] = temp;
+            }
+        }
+    }
+}
+
+void filtrMedianowy(const double* wejscie, double* wyjscie, int n) {
+    int okno = 5; // szerokość okna
+    int promien = okno / 2; // 2
+
+    for (int i = 0; i < n; i++) {
+        double bufor[5];
+        int licznik = 0;
+
+        for (int j = -promien; j <= promien; j++) {
+            int idx = i + j;
+            // Obsługa brzegów - podejście lustrzane
+            if (idx < 0) {
+                idx = -idx;
+            }
+            else if (idx >= n) {
+                idx = 2 * n - 2 - idx;
+            }
+            if (idx < 0) idx = 0;
+            if (idx >= n) idx = n - 1;
+
+            bufor[licznik++] = wejscie[idx];
+        }
+
+        sortujOkno(bufor, okno);
+        wyjscie[i] = bufor[promien]; // mediana to środkowy element posortowanego okna
+    }
+}
+
+void filtrSredniejRuchomej(const double* wejscie, double* wyjscie, int n) {
+    int okno = 5;
+    int promien = okno / 2;
+
+    for (int i = 0; i < n; i++) {
+        double suma = 0.0;
+        int ile = 0;
+
+        for (int j = -promien; j <= promien; j++) {
+            int idx = i + j;
+            // Obsługa brzegów - podejście lustrzane
+            if (idx < 0) {
+                idx = -idx;
+            }
+            else if (idx >= n) {
+                idx = 2 * n - 2 - idx;
+            }
+            if (idx < 0) idx = 0;
+            if (idx >= n) idx = n - 1;
+
+            suma += wejscie[idx];
+            ile++;
+        }
+        wyjscie[i] = suma / ile;
+    }
+}
+
+void wyswietlSygnal(const double probki[], int n) {
+    for (int i = 0; i < n; i++) {
+        printf("Probka [%3d]: %8.4f\n", i, probki[i]);
+    }
+}
+
+int zapiszDoCSV(const char* nazwaPliku, const double probki[], double xmin, double xmax, int n) {
+    FILE* plik = fopen(nazwaPliku, "w");
+    if (plik == NULL) {
+        return 0;
+    }
+
+    double dx = (n > 1) ? (xmax - xmin) / (double)(n - 1) : 0;
+
+    // Nagłówek CSV (używamy średnika jako separatora kolumn dla Excela)[cite: 12]
+    fprintf(plik, "x;y\n");
+
+    for (int i = 0; i < n; i++) {
+        double x = xmin + i * dx;
+        // Zamiana kropek na przecinki w liczbach zmiennoprzecinkowych dla polskiego Excela[cite: 12]
+        fprintf(plik, "%.6f;%.6f\n", x, probki[i]);
+    }
+
+    fclose(plik);
+    return 1;
+}
